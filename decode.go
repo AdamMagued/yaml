@@ -830,19 +830,15 @@ func (d *decoder) mapping(n *Node, out reflect.Value) (good bool) {
 		}
 		k := reflect.New(kt).Elem()
 		if d.unmarshal(n.Content[i], k) {
+			ki := k.Interface()
+			if !isComparable(ki) {
+				failf("invalid map key: %#v", ki)
+			}
 			if mergedFields != nil {
-				ki := k.Interface()
 				if mergedFields[ki] {
 					continue
 				}
 				mergedFields[ki] = true
-			}
-			kkind := k.Kind()
-			if kkind == reflect.Interface {
-				kkind = k.Elem().Kind()
-			}
-			if kkind == reflect.Map || kkind == reflect.Slice {
-				failf("invalid map key: %#v", k.Interface())
 			}
 			e := reflect.New(et).Elem()
 			if d.unmarshal(n.Content[i+1], e) || n.Content[i+1].ShortTag() == nullTag && (mapIsNew || !out.MapIndex(k).IsValid()) {
@@ -961,9 +957,15 @@ func (d *decoder) merge(parent *Node, merge *Node, out reflect.Value) {
 	if mergedFields == nil {
 		d.mergedFields = make(map[interface{}]bool)
 		for i := 0; i < len(parent.Content); i += 2 {
+			if isMerge(parent.Content[i]) {
+				continue
+			}
 			k := reflect.New(ifaceType).Elem()
 			if d.unmarshal(parent.Content[i], k) {
-				d.mergedFields[k.Interface()] = true
+				ki := k.Interface()
+				if isComparable(ki) {
+					d.mergedFields[ki] = true
+				}
 			}
 		}
 	}
@@ -997,4 +999,20 @@ func (d *decoder) merge(parent *Node, merge *Node, out reflect.Value) {
 
 func isMerge(n *Node) bool {
 	return n.Kind == ScalarNode && n.Value == "<<" && (n.Tag == "" || n.Tag == "!" || shortTag(n.Tag) == mergeTag)
+}
+
+func isComparable(v interface{}) (ok bool) {
+	if v == nil {
+		return true
+	}
+	if !reflect.TypeOf(v).Comparable() {
+		return false
+	}
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
+	_ = v == v
+	return true
 }

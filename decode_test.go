@@ -1741,6 +1741,50 @@ func (s *S) TestFuzzCrashers(c *C) {
 	}
 }
 
+func (s *S) TestMergeWithUncomparableKey(c *C) {
+	var yamlDoc = `
+base: &base
+  x: 1
+child:
+  <<: *base
+  ? [a, b]
+  : foo
+`
+	type Child struct {
+		X int `yaml:"x"`
+	}
+	type Doc struct {
+		Child Child `yaml:"child"`
+	}
+	var doc Doc
+	err := yaml.Unmarshal([]byte(yamlDoc), &doc)
+	c.Assert(err, NotNil)
+	c.Assert(doc.Child.X, Equals, 1)
+
+	// Issue #1050: unmarshal must not panic when merge map has uncomparable keys
+	var data1050 = []byte{
+		0x34, 0x30, 0x79, 0x3a,
+		0x3a, 0x0d, 0x0d, 0x0d,
+		0x0d, 0x0d, 0x0d, 0x0d,
+		0x0d, 0x3c, 0x3c, 0x3a,
+		0x0d, 0x0d, 0x0d, 0x0d,
+		0x0d, 0x0d, 0x0d, 0x2d,
+		0x20, 0x20, 0x2d, 0x20,
+		0x23, 0x0d, 0x3f, 0x0d,
+		0x23, 0x0d, 0x0d, 0x23,
+		0x2d, 0x0d, 0x20, 0x2d,
+		0x0d, 0x3f, 0x0d, 0x23,
+		0x0d, 0x0d, 0x23, 0x2d,
+		0x2d,
+	}
+	type SomeStruct struct {
+		Data string `yaml:"data"`
+	}
+	var someStruct SomeStruct
+	err = yaml.Unmarshal(data1050, &someStruct)
+	c.Assert(err, NotNil)
+}
+
 //var data []byte
 //func init() {
 //	var err error
