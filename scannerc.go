@@ -793,7 +793,13 @@ func yaml_parser_fetch_next_token(parser *yaml_parser_t) (ok bool) {
 	}
 
 	// Is it the key indicator?
-	if parser.buffer[parser.buffer_pos] == '?' && (parser.flow_level > 0 || is_blankz(parser.buffer, parser.buffer_pos+1)) {
+	if parser.buffer[parser.buffer_pos] == '?' &&
+		(is_blankz(parser.buffer, parser.buffer_pos+1) ||
+			(parser.flow_level > 0 &&
+				(parser.buffer[parser.buffer_pos+1] == ',' ||
+					parser.buffer[parser.buffer_pos+1] == '}' ||
+					parser.buffer[parser.buffer_pos+1] == ']' ||
+					parser.buffer[parser.buffer_pos+1] == ':'))) {
 		return yaml_parser_fetch_key(parser)
 	}
 
@@ -868,9 +874,14 @@ func yaml_parser_fetch_next_token(parser *yaml_parser_t) (ok bool) {
 		parser.buffer[parser.buffer_pos] == '"' || parser.buffer[parser.buffer_pos] == '%' ||
 		parser.buffer[parser.buffer_pos] == '@' || parser.buffer[parser.buffer_pos] == '`') ||
 		(parser.buffer[parser.buffer_pos] == '-' && !is_blank(parser.buffer, parser.buffer_pos+1)) ||
-		(parser.flow_level == 0 &&
-			(parser.buffer[parser.buffer_pos] == '?' || parser.buffer[parser.buffer_pos] == ':') &&
-			!is_blankz(parser.buffer, parser.buffer_pos+1)) {
+		((parser.flow_level == 0 && parser.buffer[parser.buffer_pos] == ':') ||
+			(parser.buffer[parser.buffer_pos] == '?' &&
+				(parser.flow_level == 0 ||
+					(parser.buffer[parser.buffer_pos+1] != ',' &&
+						parser.buffer[parser.buffer_pos+1] != '}' &&
+						parser.buffer[parser.buffer_pos+1] != ']' &&
+						parser.buffer[parser.buffer_pos+1] != ':')))) &&
+			!is_blankz(parser.buffer, parser.buffer_pos+1) {
 		return yaml_parser_fetch_plain_scalar(parser)
 	}
 
@@ -2726,9 +2737,8 @@ func yaml_parser_scan_plain_scalar(parser *yaml_parser_t, token *yaml_token_t) b
 			if (parser.buffer[parser.buffer_pos] == ':' && is_blankz(parser.buffer, parser.buffer_pos+1)) ||
 				(parser.flow_level > 0 &&
 					(parser.buffer[parser.buffer_pos] == ',' ||
-						parser.buffer[parser.buffer_pos] == '?' || parser.buffer[parser.buffer_pos] == '[' ||
-						parser.buffer[parser.buffer_pos] == ']' || parser.buffer[parser.buffer_pos] == '{' ||
-						parser.buffer[parser.buffer_pos] == '}')) {
+						parser.buffer[parser.buffer_pos] == '[' || parser.buffer[parser.buffer_pos] == ']' ||
+						parser.buffer[parser.buffer_pos] == '{' || parser.buffer[parser.buffer_pos] == '}')) {
 				break
 			}
 

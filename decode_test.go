@@ -612,6 +612,42 @@ var unmarshalTests = []struct {
 		map[string]interface{}{"a": []interface{}{"https://github.com/go-yaml/yaml"}},
 	},
 
+	// Issue #1070: allow question marks inside plain scalars in flow mappings and sequences
+	{
+		"a: {b: c?c}",
+		map[string]interface{}{"a": map[string]interface{}{
+			"b": "c?c",
+		}},
+	},
+	{
+		"a: {b: c?}",
+		map[string]interface{}{"a": map[string]interface{}{
+			"b": "c?",
+		}},
+	},
+	{
+		"a: {b: ?c}",
+		map[string]interface{}{"a": map[string]interface{}{
+			"b": "?c",
+		}},
+	},
+	{
+		"a: {?foo: bar}",
+		map[string]interface{}{"a": map[string]interface{}{
+			"?foo": "bar",
+		}},
+	},
+	{
+		"a: [c?c, ?c, c?]",
+		map[string]interface{}{"a": []interface{}{"c?c", "?c", "c?"}},
+	},
+	{
+		"a: {b: https://example.com/search?q=test&lang=en}",
+		map[string]interface{}{"a": map[string]interface{}{
+			"b": "https://example.com/search?q=test&lang=en",
+		}},
+	},
+
 	// Duration
 	{
 		"a: 3s",
@@ -928,6 +964,75 @@ func (s *S) TestUnmarshalDurationInt(c *C) {
 	var d time.Duration
 	err := yaml.Unmarshal([]byte("123"), &d)
 	c.Assert(err, ErrorMatches, "(?s).* line 1: cannot unmarshal !!int `123` into time.Duration")
+}
+
+func (s *S) TestUnmarshalQuestionMarkInFlowScalar(c *C) {
+	// Issue #1070: flow mapping with '?' inside plain scalar values
+	type obj struct {
+		A struct {
+			B string
+		}
+	}
+	var o obj
+	err := yaml.Unmarshal([]byte("a: {b: c?c}"), &o)
+	c.Assert(err, IsNil)
+	c.Assert(o.A.B, Equals, "c?c")
+
+	var m map[string]map[string]string
+	err = yaml.Unmarshal([]byte("a: {b: c?c}"), &m)
+	c.Assert(err, IsNil)
+	c.Assert(m["a"]["b"], Equals, "c?c")
+
+	// Node inspection to confirm scalar content and style
+	var doc yaml.Node
+	err = yaml.Unmarshal([]byte("a: {b: c?c}"), &doc)
+	c.Assert(err, IsNil)
+	c.Assert(doc.Content[0].Kind, Equals, yaml.MappingNode)
+	aValue := doc.Content[0].Content[1]
+	c.Assert(aValue.Kind, Equals, yaml.MappingNode)
+	bValue := aValue.Content[1]
+	c.Assert(bValue.Kind, Equals, yaml.ScalarNode)
+	c.Assert(bValue.Value, Equals, "c?c")
+
+	// Flow mapping with '?' at various positions
+	var multi map[string]string
+	err = yaml.Unmarshal([]byte("{mid: a?b, start: ?start, end: end?, repeated: a?b?c}"), &multi)
+	c.Assert(err, IsNil)
+	c.Assert(multi, DeepEquals, map[string]string{
+		"mid":      "a?b",
+		"start":    "?start",
+		"end":      "end?",
+		"repeated": "a?b?c",
+	})
+
+	// Flow mapping with URL containing query string
+	var urlMap map[string]string
+	err = yaml.Unmarshal([]byte("{url: https://example.com/api?param1=val1&param2=val2}"), &urlMap)
+	c.Assert(err, IsNil)
+	c.Assert(urlMap["url"], Equals, "https://example.com/api?param1=val1&param2=val2")
+
+	// Flow mapping with '?' in keys
+	var keyMap map[string]interface{}
+	err = yaml.Unmarshal([]byte("{?foo: bar, regular: 123}"), &keyMap)
+	c.Assert(err, IsNil)
+	c.Assert(keyMap, DeepEquals, map[string]interface{}{
+		"?foo":    "bar",
+		"regular": 123,
+	})
+
+	// Explicit key indicator with whitespace
+	var explicitKeyMap map[string]string
+	err = yaml.Unmarshal([]byte("{? foo: bar}"), &explicitKeyMap)
+	c.Assert(err, IsNil)
+	c.Assert(explicitKeyMap, DeepEquals, map[string]string{
+		"foo": "bar",
+	})
+
+	// Flow sequence with question marks
+	var seq []string
+	err = yaml.Unmarshal([]byte("[c?c, ?c, c?, a?b?c]"), &seq)
+	c.Assert(err, IsNil)
+	c.Assert(seq, DeepEquals, []string{"c?c", "?c", "c?", "a?b?c"})
 }
 
 var unmarshalErrorTests = []struct {
