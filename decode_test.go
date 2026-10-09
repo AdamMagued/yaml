@@ -612,6 +612,43 @@ var unmarshalTests = []struct {
 		map[string]interface{}{"a": []interface{}{"https://github.com/go-yaml/yaml"}},
 	},
 
+	// issue #1070 (allow scalars with question marks in flow mappings and sequences)
+	{
+		"a: {b: c?c}",
+		map[string]interface{}{"a": map[string]interface{}{
+			"b": "c?c",
+		}},
+	},
+	{
+		"a: {b?b: c}",
+		map[string]interface{}{"a": map[string]interface{}{
+			"b?b": "c",
+		}},
+	},
+	{
+		"a: [c?c]",
+		map[string]interface{}{"a": []interface{}{"c?c"}},
+	},
+	{
+		"a: {b: https://github.com/go-yaml/yaml?foo=bar&baz=1}",
+		map[string]interface{}{"a": map[string]interface{}{
+			"b": "https://github.com/go-yaml/yaml?foo=bar&baz=1",
+		}},
+	},
+	{
+		"a: {b: c??c}",
+		map[string]interface{}{"a": map[string]interface{}{
+			"b": "c??c",
+		}},
+	},
+	{
+		"a: {b: c?, d: e}",
+		map[string]interface{}{"a": map[string]interface{}{
+			"b": "c?",
+			"d": "e",
+		}},
+	},
+
 	// Duration
 	{
 		"a: 3s",
